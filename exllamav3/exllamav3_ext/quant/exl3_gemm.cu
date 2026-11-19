@@ -54,6 +54,14 @@ uint64_t roundup_pow2(uint64_t x)
     return x + 1;
 }
 
+// Rows 1..8 share one tuned configuration. The kernels give every row the same bits whatever the row count when the shape and
+// SM count are fixed, but the tuner may pick another shape or SM count per row-count bucket (1-2, 3-4, 5-8), and the
+// accumulation order then differs: a row of a speculative-decoding verify pass would not equal the same token decoded alone.
+static inline int autotune_rows(int size_m)
+{
+    return size_m <= 8 ? 2 : size_m;
+}
+
 uint64_t gemm_autotune_hash
 (
     int size_m,
@@ -310,7 +318,7 @@ int exl3_gemm_gr
     bool autotune = force_shape_idx <= 0 && force_num_sms <= 0;
     if (autotune)
     {
-        uint64_t autotune_key = gemm_autotune_hash(MAX(size_m, 2), size_k, size_n, K, c_fp32, device, cc, num_sms, cb, half_k);
+        uint64_t autotune_key = gemm_autotune_hash(autotune_rows(size_m), size_k, size_n, K, c_fp32, device, cc, num_sms, cb, half_k);
 #if defined(USE_ROCM)
         autotune_key ^= 0x52444e4157313031ull;   // RDNA grid rules (below) tune separately
 #endif
@@ -755,7 +763,7 @@ int exl3_mgemm_gr
     {
         uint64_t autotune_key = mgemm_autotune_hash
         (
-            size_m, size_k, size_n, K, c_fp32, device, cc, total_sms, cb, bszm_in, bszm_out, half_k
+            autotune_rows(size_m), size_k, size_n, K, c_fp32, device, cc, total_sms, cb, bszm_in, bszm_out, half_k
         );
         if (had_src_list) autotune_key ^= 0x9e3779b97f4a7c15ull;   // sliced launches tune separately
 
