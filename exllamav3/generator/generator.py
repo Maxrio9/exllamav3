@@ -494,8 +494,8 @@ class Generator:
     def _warn_inexact_mtp(cache):
         """
         Greedy MTP output equals plain greedy decoding only if a verify-pass row computes exactly what the same token
-        does in a one-token decode step. Two library defaults break that for a recurrent (GDN) target; warn, since the
-        failure is silent (rare near-tie flips, which then compound).
+        does in a one-token decode step. Two library defaults break that for a recurrent (GDN) target; note it, since the
+        difference is silent (rare near-tie flips, which then compound). Quality is unaffected.
         """
         log = logging.getLogger(__name__)
         half_state = any(
@@ -503,15 +503,15 @@ class Generator:
             for l in cache.get_all_recurrent_layers().values()
         )
         if half_state:
-            log.warning(
-                "MTP drafting with an fp16 recurrent state: decoding rounds the state after every token, a verify pass "
-                "only after its last one, so output can differ from plain decoding. Use Cache(recurrent_dtype = torch.float)."
+            log.info(
+                "MTP drafting with an fp16 recurrent state: greedy output can differ from plain decoding at near-ties "
+                "(both are valid outputs). For bit-identical output use Cache(recurrent_dtype = torch.float)."
             )
         if torch.version.hip is None and os.environ.get("EXL3_INT8_GEMV", "2") != "0":
-            log.warning(
-                "MTP drafting with EXL3_INT8_GEMV enabled (the default): calls of 1-2 rows run the int8-activation GEMV "
-                "and calls of 3+ rows the fp16 kernel, so verify rows differ from decoded rows (~1% per projection) and "
-                "output can differ from plain decoding. Set EXL3_INT8_GEMV=0 before the model loads."
+            log.info(
+                "MTP drafting with EXL3_INT8_GEMV on (the default): 1-2 row calls use the int8-activation GEMV and wider "
+                "verify calls the fp16 kernel, so greedy output can differ from plain decoding at near-ties (both are valid "
+                "outputs). For bit-identical output set EXL3_INT8_GEMV=0 before the model loads."
             )
 
 
